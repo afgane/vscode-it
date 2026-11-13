@@ -49,7 +49,7 @@
         exec /opt/galaxy-vscode/start.sh
     ]]></command>
     <inputs>
-        <param name="inputs" type="data" multiple="true" optional="true"
+        <param name="inputs" type="data" format="data" multiple="true" optional="true"
                label="Datasets to make available in the workspace"
                help="Linked read-only under workspace/inputs/. Save anything you want back in Galaxy under workspace/outputs/."/>
     </inputs>
