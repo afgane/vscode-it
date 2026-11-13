@@ -25,8 +25,8 @@ jobs:
       - name: XML is well formed
         run: xmllint --noout tool/*.xml
       - name: planemo lint
-        # The InputsDataFormat warning is expected: the tool accepts any dataset.
-        run: planemo lint --fail_level error tool/interactivetool_vscode.xml
+        # The tool lints clean, so warnings fail the build too (planemo's default).
+        run: planemo lint tool/interactivetool_vscode.xml
       - name: Shell syntax
         run: bash -n install.sh docker/start.sh docker/build.sh scripts/dev/test_image.sh
       - name: Helm overlay is in step with tool/
@@ -46,7 +46,7 @@ jobs:
             mkdir -p "/tmp/tools-$mode"
             ./install.sh --mode "$mode" --tool-path "/tmp/tools-$mode" > /dev/null
             xmllint --noout "/tmp/tools-$mode"/interactive/vscode/*.xml
-            planemo lint --fail_level error "/tmp/tools-$mode/interactive/vscode/interactivetool_vscode.xml"
+            planemo lint "/tmp/tools-$mode/interactive/vscode/interactivetool_vscode.xml"
           done
           grep -q '@REQUIRES_DOMAIN@">True<' /tmp/tools-domain/interactive/vscode/macros.xml
           grep -q '@REQUIRES_DOMAIN@">False<' /tmp/tools-path/interactive/vscode/macros.xml
