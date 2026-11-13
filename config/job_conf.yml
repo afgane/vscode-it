@@ -1,0 +1,65 @@
+# Job configuration for the VS Code interactive tool.
+#
+# Interactive tools need a destination that can expose the container's port and
+# tell Galaxy where it is. Two kinds do:
+#   - the Kubernetes runner, with one Service and one Ingress per session;
+#   - a Docker-enabled local, Slurm or Pulsar destination, where Galaxy's container
+#     monitor reports the host and port back.
+# Cloud batch runners (GCP Batch, AWS Batch) cannot, so ITs must be routed away
+# from them (config/tpv_rules.yml does that with the `interactive` tag).
+
+runners:
+  local:
+    load: galaxy.jobs.runners.local:LocalJobRunner
+    workers: 4
+  k8s:
+    load: galaxy.jobs.runners.kubernetes:KubernetesJobRunner
+    # Path mode: no per-IT TLS block, the ingress controller's default certificate
+    # already serves 443 for every host. (With true and no secret the runner emits
+    # a tls entry with an empty host and an empty secret name.)
+    k8s_interactivetools_use_ssl: false
+    # Domain mode: the per-IT Ingress names <id>-<token>.ep.interactivetool.<host>,
+    # so it needs the wildcard certificate:
+    # k8s_interactivetools_use_ssl: true
+    # k8s_interactivetools_tls_secret: galaxy-wildcard-tls
+    # Replaces the annotations copied from Galaxy's own Ingress (which may include
+    # a cert-manager issuer) with the long timeouts a WebSocket-heavy IDE needs.
+    k8s_interactivetools_ingress_annotations: |
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-body-size: "1G"
+    # k8s_interactivetools_ingress_class, k8s_namespace, k8s_pull_policy and the
+    # rest as for your other Kubernetes jobs.
+
+execution:
+  default: local_plain
+  environments:
+    local_plain:
+      runner: local
+
+    # Docker on the Galaxy host (or any Slurm/Pulsar destination with Docker), the
+    # layout from the GTN "Galaxy Interactive Tools" admin tutorial.
+    docker_interactive:
+      runner: local
+      docker_enabled: true
+      docker_volumes: $defaults
+      docker_sudo: false
+      docker_net: bridge
+      docker_auto_rm: true
+      # Run as the Galaxy user, not the image's user; start.sh keeps all state under
+      # the job working directory so no HOME or TMPDIR needs to be passed in.
+      docker_set_user: ""
+      require_container: true
+      # With Pulsar: container_monitor_result: callback
+
+    # Kubernetes: the destination galaxy-helm creates, plus the IT runner settings
+    # above. Nothing IT-specific is needed at the destination level.
+    k8s_interactive:
+      runner: k8s
+      docker_enabled: true
+      requests_cpu: 1
+      limits_memory: 4G
+
+tools:
+  - id: interactive_tool_vscode
+    environment: docker_interactive   # or k8s_interactive; TPV users see tpv_rules.yml

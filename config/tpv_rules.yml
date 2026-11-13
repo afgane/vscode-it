@@ -1,0 +1,23 @@
+# Total Perspective Vortex rule for interactive tools (TPV users; plain job_conf
+# users route the tool in config/job_conf.yml instead).
+tools:
+  interactive_tool_.*:
+    cores: 1
+    mem: 4
+    params:
+      # Optional. What $__galaxy_url__ (GALAXY_URL in the tool) resolves to for IT
+      # jobs. Needed only when the public URL is not reachable, or not usable, from
+      # the job: on Kubernetes point it at Galaxy's own nginx Service; behind
+      # Terra/Leonardo the public URL only admits browser sessions. On a server
+      # whose public URL works from the compute nodes, delete this param.
+      # galaxy_infrastructure_url: http://galaxy-nginx:8000/galaxy
+    scheduling:
+      require:
+        # Pin ITs to the one destination that can expose a port (tag it
+        # `interactive` in its accept list); batch/cloud destinations must not
+        # carry the tag.
+        - interactive
+    rules:
+      - id: require_login
+        if: user is None
+        fail: An account is required to run this tool. Please log in or create an account.

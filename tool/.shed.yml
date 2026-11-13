@@ -1,0 +1,14 @@
+name: interactive_tool_vscode
+owner: ksuderman
+description: Visual Studio Code (OpenVSCode Server) as a Galaxy Interactive Tool
+long_description: |
+  Runs Visual Studio Code in the browser as a Galaxy Interactive Tool, with
+  Python, R, micromamba and the Google Cloud CLI in the integrated terminal and
+  helpers that move datasets between the history and the workspace. Works
+  path-based (no DNS or certificate setup, suitable behind a shared proxy) or
+  domain-based; see macros.xml.
+categories:
+  - Interactive Tools
+remote_repository_url: https://github.com/ksuderman/galaxy-vscode-it
+homepage_url: https://github.com/ksuderman/galaxy-vscode-it
+type: unrestricted

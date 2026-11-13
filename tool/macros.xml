@@ -1,0 +1,27 @@
+<macros>
+    <!-- Edit these tokens to configure the tool for your server; nothing else in
+         interactivetool_vscode.xml needs to change. install.sh sets them for you. -->
+
+    <!-- The image built from ../docker. Pin a tag; never move one. -->
+    <token name="@CONTAINER@">ksuderman/galaxy-vscode:1.105.1-3</token>
+    <token name="@TOOL_VERSION@">1.105.1</token>
+
+    <!-- How Galaxy publishes the running IDE.
+
+         False (path-based):  https://<galaxy host>/<prefix>/interactivetool/ep/<id>/<token>/
+                              No DNS or certificate work; the only layout that works behind a
+                              shared proxy such as Terra/Leonardo. Default.
+         True (domain-based): https://<id>-<token>.ep.interactivetool.<galaxy host>/
+                              Galaxy's conventional layout; needs a wildcard DNS record and a
+                              wildcard certificate for *.ep.interactivetool.<galaxy host>.
+
+         Both work with the same image: the server is started at the entry point path,
+         which Galaxy injects as EP_PATH and which is "/" in domain mode. -->
+    <token name="@REQUIRES_DOMAIN@">False</token>
+
+    <xml name="requirements">
+        <requirements>
+            <container type="docker">@CONTAINER@</container>
+        </requirements>
+    </xml>
+</macros>

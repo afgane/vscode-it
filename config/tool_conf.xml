@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<toolbox monitor="true">
+  <section id="interactive_custom" name="Interactive Tools">
+    <!-- Path relative to tool_path (default: tools/). install.sh copies tool/
+         to <tool_path>/interactive/vscode/. -->
+    <tool file="interactive/vscode/interactivetool_vscode.xml" />
+  </section>
+</toolbox>

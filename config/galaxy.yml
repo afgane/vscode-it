@@ -1,0 +1,66 @@
+# Galaxy settings for the VS Code interactive tool. Merge the `galaxy:` keys into
+# your galaxy.yml. The tool works in either of Galaxy's two IT layouts; pick one
+# with @REQUIRES_DOMAIN@ in tool/macros.xml and configure the matching block.
+galaxy:
+  interactivetools_enable: true
+
+  # Toolbox: add tool_conf.xml from this directory (or its one <tool> line).
+  tool_config_file: config/tool_conf.xml,config/interactive_tool_conf.xml
+
+  # Entry point map shared by the web and job handlers. On a multi-process or
+  # multi-pod server this MUST be on storage every handler sees, or stopping an
+  # IT fails with "no such table: gxitproxy". Galaxy's default is a relative path.
+  interactivetools_map: database/interactivetools_map.sqlite
+  # For a busy server use PostgreSQL instead (also what gx-it-proxy reads):
+  # interactivetoolsproxy_map: "postgresql:///gxitproxy?host=/var/run/postgresql"
+
+  # URL layout. Path mode: <base_path>/<prefix>/ep/<id>/<token>/
+  #             Domain mode: <id>-<token>.ep.<prefix>.<proxy_host>/
+  # The defaults are fine; shown here because the nginx and DNS setup below
+  # must use the same words.
+  # interactivetools_prefix: interactivetool
+  # interactivetools_base_path: /          # Galaxy's URL prefix, e.g. /galaxy
+  interactivetools_shorten_url: true
+
+  # ---------------------------------------------------------------------------
+  # PATH MODE (@REQUIRES_DOMAIN@ = False)
+  #
+  # The IDE is served under Galaxy's own host and prefix. No DNS or certificate
+  # work. This is the only layout that works behind a shared proxy such as
+  # Terra/Leonardo, and what usegalaxy.org uses for JupyTool.
+  #
+  # Conventional server (gx-it-proxy behind nginx): leave interactivetools_proxy_host
+  # unset, set interactivetools_upstream_proxy: true, and add the path location from
+  # config/nginx.conf. Galaxy then hands the browser a RELATIVE URL on the request
+  # host.
+  #
+  # Kubernetes (KubernetesJobRunner): set interactivetools_proxy_host to the host
+  # named in Galaxy's own Ingress, or to "" when that Ingress has no host (the
+  # runner puts this value in the per-IT Ingress host field, and ingress-nginx
+  # routes by Host before path). See config/job_conf.yml for the runner settings.
+  # interactivetools_upstream_proxy: true
+  # interactivetools_proxy_host: ""
+
+  # ---------------------------------------------------------------------------
+  # DOMAIN MODE (@REQUIRES_DOMAIN@ = True)
+  #
+  # Each session gets a subdomain: <id>-<token>.ep.interactivetool.<proxy_host>.
+  # Needs a wildcard DNS record *.ep.interactivetool.<proxy_host> pointing at the
+  # proxy and a certificate valid for that wildcard (Let's Encrypt issues these
+  # only through the DNS-01 challenge).
+  #
+  # Conventional server: interactivetools_proxy_host is the Galaxy hostname and
+  # nginx gets the wildcard server block from config/nginx.conf, forwarding to
+  # gx-it-proxy. Kubernetes: the per-IT Ingress names the subdomain, so set
+  # k8s_interactivetools_use_ssl and k8s_interactivetools_tls_secret to the
+  # wildcard certificate's Secret in config/job_conf.yml.
+  # interactivetools_upstream_proxy: true
+  # interactivetools_proxy_host: galaxy.example.org
+
+# gx-it-proxy (conventional servers only; Kubernetes uses Ingresses instead). The
+# galaxyproject.galaxy Ansible role starts it through Gravity:
+# gravity:
+#   gx_it_proxy:
+#     enable: true
+#     port: 4002
+#     sessions: database/interactivetools_map.sqlite   # same as interactivetools_map

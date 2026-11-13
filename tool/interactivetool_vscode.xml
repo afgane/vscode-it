@@ -1,0 +1,75 @@
+<tool id="interactive_tool_vscode" tool_type="interactive" name="VS Code" version="@TOOL_VERSION@" profile="23.0">
+    <description>Visual Studio Code in the browser</description>
+    <macros>
+        <import>macros.xml</import>
+    </macros>
+    <!-- gitpod/openvscode-server plus python3/bioblend/ipykernel, R with
+         languageserver/IRkernel, micromamba, the Google Cloud CLI, the Python,
+         Jupyter and R extensions, start.sh and the galaxy-get/galaxy-put helpers. -->
+    <expand macro="requirements"/>
+    <entry_points>
+        <!-- Path-based or domain-based, see @REQUIRES_DOMAIN@ in macros.xml.
+             requires_path_in_url tells the proxy to hand the full path to the
+             container in path mode; it has no effect in domain mode. -->
+        <entry_point name="VS Code" label="vscode" requires_domain="@REQUIRES_DOMAIN@" requires_path_in_url="True">
+            <port>3000</port>
+            <url>/</url>
+        </entry_point>
+    </entry_points>
+    <environment_variables>
+        <!-- The path Galaxy routes to this entry point. Path mode: the full path,
+             e.g. /galaxy/interactivetool/ep/<id>/<token> (no trailing slash). Domain
+             mode: empty, and the command below turns that into "/". The server must
+             serve from it because the proxy forwards the request path unchanged. -->
+        <environment_variable name="EP_PATH" inject="entry_point_path_for_label">vscode</environment_variable>
+        <!-- Galaxy access from the integrated terminal (bioblend, galaxy-get,
+             galaxy-put). GALAXY_URL is galaxy_infrastructure_url, which the job
+             destination may override (see config/tpv_rules.yml); API_KEY is created
+             for the user if they have none. -->
+        <environment_variable name="GALAXY_URL">$__galaxy_url__</environment_variable>
+        <environment_variable name="API_KEY" inject="api_key" />
+        <environment_variable name="HISTORY_ID">$__history_id__</environment_variable>
+    </environment_variables>
+    <!-- The tool command IS the launch (the image has no ENTRYPOINT). The container
+         runs as Galaxy's job uid, not the image's user, so start.sh points HOME and
+         all server state at the job working directory, which is writable. -->
+    <command><![CDATA[
+        mkdir -p workspace/inputs &&
+        #import re
+        #if $inputs and str($inputs) != 'None'
+            #for $d in $inputs
+                #set $name = re.sub('[^\w\-.]', '_', str($d.element_identifier))
+                #if not $name.endswith('.' + str($d.ext))
+                    #set $name = $name + '.' + str($d.ext)
+                #end if
+                ln -sf '$d' 'workspace/inputs/$name' &&
+            #end for
+        #end if
+        export EP_PATH="\${EP_PATH:-/}" &&
+        exec /opt/galaxy-vscode/start.sh
+    ]]></command>
+    <inputs>
+        <param name="inputs" type="data" multiple="true" optional="true"
+               label="Datasets to make available in the workspace"
+               help="Linked read-only under workspace/inputs/. Save anything you want back in Galaxy under workspace/outputs/."/>
+    </inputs>
+    <outputs>
+        <collection name="outputs" type="list" label="VS Code outputs">
+            <discover_datasets pattern="__designation_and_ext__" directory="workspace/outputs" visible="false"/>
+        </collection>
+    </outputs>
+    <help><![CDATA[
+Launches Visual Studio Code (OpenVSCode Server) as a Galaxy Interactive Tool.
+
+Selected datasets are linked read-only under ``workspace/inputs/``. Files saved
+under ``workspace/outputs/`` with a file extension (for example ``notes.txt``)
+are imported into your history as a collection when the tool is stopped.
+
+The integrated terminal has ``python3`` with ``bioblend``, ``R`` with the language
+server and an IRkernel for notebooks, ``micromamba`` for conda packages, ``git``
+and the Google Cloud CLI. ``GALAXY_URL``, ``API_KEY`` and
+``HISTORY_ID`` are set, and ``galaxy-get <dataset>`` / ``galaxy-put <file>`` move
+data between the history and the workspace. The workspace ``README.md`` has the
+details.
+    ]]></help>
+</tool>
