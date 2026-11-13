@@ -125,9 +125,9 @@ EOF
 fi
 
 # The proxy (gx-it-proxy or a Kubernetes Ingress) forwards the request path
-# unchanged, so the server must serve from the entry point path. The pre-installed extensions live in the
-# image; the server records its state there too, which is why the directory is
-# world-writable.
+# unchanged, so the server must serve from the entry point path. The
+# pre-installed extensions live in the image; the server records its state there
+# too, which is why the directory is world-writable.
 exec /home/.openvscode-server/bin/openvscode-server \
     --host 0.0.0.0 \
     --port 3000 \

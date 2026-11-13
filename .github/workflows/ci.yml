@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+    tags: ['*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install xmllint and planemo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxml2-utils
+          pip install planemo
+      - name: XML is well formed
+        run: xmllint --noout tool/*.xml
+      - name: planemo lint
+        # The InputsDataFormat warning is expected: the tool accepts any dataset.
+        run: planemo lint --fail_level error tool/interactivetool_vscode.xml
+      - name: Shell syntax
+        run: bash -n install.sh docker/start.sh docker/build.sh scripts/dev/test_image.sh
+      - name: Helm overlay is in step with tool/
+        run: |
+          scripts/render_helm.py --output /tmp/overlay.yml
+          diff -u helm/vscode-it.yml /tmp/overlay.yml
+      - name: Image tag in build.sh matches @CONTAINER@ or is one ahead
+        run: |
+          pinned=$(sed -n 's|.*@CONTAINER@">[^:]*:\([^<]*\)<.*|\1|p' tool/macros.xml)
+          built=$(bash -c 'OPENVSCODE_VERSION=$(sed -n "s|^OPENVSCODE_VERSION=.*:-\([^}]*\)}.*|\1|p" docker/build.sh); sed -n "s|^TAG=.*VERSION}\(-[0-9]*\)}.*|${OPENVSCODE_VERSION}\1|p" docker/build.sh')
+          echo "macros.xml pins $pinned, build.sh builds $built"
+          [ "${pinned%-*}" = "${built%-*}" ]
+          [ "${built##*-}" -ge "${pinned##*-}" ] && [ "${built##*-}" -le "$(( ${pinned##*-} + 1 ))" ]
+      - name: install.sh into a scratch tool directory, both modes
+        run: |
+          for mode in path domain; do
+            mkdir -p "/tmp/tools-$mode"
+            ./install.sh --mode "$mode" --tool-path "/tmp/tools-$mode" > /dev/null
+            xmllint --noout "/tmp/tools-$mode"/interactive/vscode/*.xml
+            planemo lint --fail_level error "/tmp/tools-$mode/interactive/vscode/interactivetool_vscode.xml"
+          done
+          grep -q '@REQUIRES_DOMAIN@">True<' /tmp/tools-domain/interactive/vscode/macros.xml
+          grep -q '@REQUIRES_DOMAIN@">False<' /tmp/tools-path/interactive/vscode/macros.xml
+
+  image:
+    # Build and exercise the image on a tag. Nothing is pushed: publishing to
+    # Docker Hub is a manual step.
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: TAG=ci docker/build.sh
+      - name: Test the way Galaxy's Docker runner uses it
+        run: scripts/dev/test_image.sh ksuderman/galaxy-vscode:ci

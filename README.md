@@ -51,7 +51,7 @@ Either install from the ToolShed once the repository is published
 `planemo shed_update`), or copy it into the tool directory:
 
     ./install.sh --mode path   --tool-path /srv/galaxy/server/tools
-    ./install.sh --mode domain --tool-path /srv/galaxy/server/tools --container ksuderman/galaxy-vscode:1.105.1-3
+    ./install.sh --mode domain --tool-path /srv/galaxy/server/tools --container ksuderman/galaxy-vscode:1.105.1-4
 
 The installer writes `tools/interactive/vscode/` and prints what is left to do.
 Add the tool to a tool conf (`config/tool_conf.xml`) and restart Galaxy.
@@ -107,8 +107,9 @@ Ingress names a host.
 ## Building the image
 
     cd docker
-    ./build.sh                      # builds ksuderman/galaxy-vscode:1.105.1-3
-    docker push ksuderman/galaxy-vscode:1.105.1-3
+    ./build.sh                      # builds ksuderman/galaxy-vscode:1.105.1-4
+    docker push ksuderman/galaxy-vscode:1.105.1-4
+    ../scripts/dev/test_image.sh ksuderman/galaxy-vscode:1.105.1-4
 
 `REGISTRY`, `IMAGE_NAME`, `OPENVSCODE_VERSION` and `TAG` can be overridden in
 the environment. Bump the `-<n>` suffix for every change and never move a tag:
@@ -116,10 +117,15 @@ the tool pins one, and nodes that already pulled it will not see a moved tag
 with `k8s_pull_policy: IfNotPresent`. After a rebuild, set `@CONTAINER@` in
 `tool/macros.xml` and run `scripts/render_helm.py`.
 
-The current published image, `1.105.1-3`, predates the domain-mode change to
-`start.sh` (it still insists on a non-empty `EP_PATH`). The tool command covers
-that by exporting `/` when Galaxy injects an empty path, so both modes work with
-`1.105.1-3`; the next build makes `start.sh` tolerant on its own.
+The tool pins `1.105.1-4`, in which `start.sh` treats an empty or unset
+`EP_PATH` as `/` on its own. `1.105.1-3` and earlier insist on a non-empty
+`EP_PATH`; the tool command still exports `/` when Galaxy injects an empty
+path, so both modes work with those images too.
+
+`scripts/dev/test_image.sh [IMAGE]` runs the image the way Galaxy's Docker
+runner does (uid 10001, the tool script as the command) and checks path mode,
+domain mode (empty `EP_PATH`) and an unset `EP_PATH`. It exits non-zero on any
+failure and defaults to the image named in `tool/macros.xml`.
 
 What is inside (Ubuntu 22.04 base from gitpod):
 
@@ -142,9 +148,19 @@ runner sets `command` and `args` explicitly and does not care either way.
 A quick smoke test without Galaxy:
 
     docker run --rm -e EP_PATH=/galaxy/interactivetool/ep/1/t -w /jobdir -v $PWD:/jobdir \
-        --user 10001:10001 -p 3000:3000 ksuderman/galaxy-vscode:1.105.1-3
+        --user 10001:10001 -p 3000:3000 ksuderman/galaxy-vscode:1.105.1-4
     # then open http://localhost:3000/galaxy/interactivetool/ep/1/t/
     # domain mode: -e EP_PATH=/ and open http://localhost:3000/
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request: `xmllint`,
+`planemo lint`, `bash -n` on the shell scripts, a drift check that fails when
+`helm/vscode-it.yml` is not what `scripts/render_helm.py` produces, a check
+that the tag in `docker/build.sh` is the pinned `@CONTAINER@` tag or one ahead
+of it, and `install.sh` into a scratch directory in both modes. On a git tag it
+also builds the image and runs `scripts/dev/test_image.sh` against it. It never
+pushes an image.
 
 ## Keeping galaxy-k8s-boot in step
 
@@ -212,7 +228,7 @@ Bioconductor via micromamba, clean Stop with output collection. On Terra dev
 
 Not yet exercised: domain mode end to end (the code paths are Galaxy's standard
 ones, but nobody has launched this tool at a wildcard host yet), a Docker or
-Pulsar destination (the image change that makes it possible is in 1.105.1-3),
+Pulsar destination (the image change that makes it possible has been in since 1.105.1-3),
 and a ToolShed install. The repackaging in this directory (`tool/`, `config/`,
 `install.sh`, `scripts/render_helm.py`) was done 2026-11-12 and has not been
 deployed anywhere.

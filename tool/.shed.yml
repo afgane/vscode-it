@@ -9,6 +9,6 @@ long_description: |
   domain-based; see macros.xml.
 categories:
   - Interactive Tools
-remote_repository_url: https://github.com/ksuderman/galaxy-vscode-it
-homepage_url: https://github.com/ksuderman/galaxy-vscode-it
+remote_repository_url: https://github.com/ksuderman/vscode-it
+homepage_url: https://github.com/ksuderman/vscode-it
 type: unrestricted
