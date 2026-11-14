@@ -4,7 +4,7 @@
 The overlay embeds the tool XML as a ConfigMap file, so it would drift from
 tool/interactivetool_vscode.xml otherwise. Run after any change under tool/:
 
-    scripts/render_helm.py [--mode path|domain] [--prefix /galaxy]
+    scripts/render_helm.py [--mode path|domain] [--no-tool] [--output FILE]
 
 Macros are expanded here (galaxy-helm's extraFileMappings is one file per entry,
 and keeping macros.xml beside the tool only to resolve three tokens is not worth
@@ -87,10 +87,7 @@ configs:
       # handlers then keep separate map files and stopping an IT fails with
       # "no such table: gxitproxy". Pin it to the shared volume.
       interactivetools_map: /galaxy/server/database/interactivetools_map.sqlite
-      # Chart default (verbatim, so the standard + shed confs are preserved -- the chart
-      # tpl-renders this, hence the {{{{if}}}}) + the interactive tool conf added below.
-      tool_config_file: "/galaxy/server/config/tool_conf.xml{{{{if .Values.setupJob.downloadToolConfs.enabled}}}},{{{{ .Values.setupJob.downloadToolConfs.volume.mountPath }}}}/config/shed_tool_conf.xml{{{{end}}}},/galaxy/server/config/interactive_tool_conf.xml"
-  job_conf.yml:
+{tool_config}  job_conf.yml:
     runners:
       k8s:
         # Path mode: no per-IT TLS block, ingress-nginx already serves 443 for every
@@ -114,7 +111,9 @@ jobs:
         # Pin every interactive tool to the k8s destination: it is the only one that
         # can create the Service + Ingress an IT needs. Tag that destination
         # `interactive` in its accept list; batch/cloud destinations must not carry it.
-        interactive_tool_.*:
+        # TPV matches from the START of the tool id, and a ToolShed-installed tool's
+        # id starts with the ToolShed host, hence the leading `.*`.
+        .*interactive_tool_.*:
           params:
             # What $__galaxy_url__ (GALAXY_URL in the tool) resolves to for IT jobs:
             # Galaxy's own nginx Service, reached from inside the cluster. The public
@@ -124,7 +123,17 @@ jobs:
           scheduling:
             require:
               - interactive
+{embedded}"""
 
+# The two parts that put the tool itself on the server. Left out with --no-tool,
+# for a Galaxy that gets the tool from a ToolShed and needs only the configuration.
+TOOL_CONFIG = """\
+      # Chart default (verbatim, so the standard + shed confs are preserved -- the chart
+      # tpl-renders this, hence the {{if}}) + the interactive tool conf added below.
+      tool_config_file: "/galaxy/server/config/tool_conf.xml{{if .Values.setupJob.downloadToolConfs.enabled}},{{ .Values.setupJob.downloadToolConfs.volume.mountPath }}/config/shed_tool_conf.xml{{end}},/galaxy/server/config/interactive_tool_conf.xml"
+"""
+
+EMBEDDED = """
 extraFileMappings:
   # The tool definition. Placed in Galaxy's tool_path (/galaxy/server/database/tools)
   # beside the bundled ITs, so the tool_conf below resolves it as interactive/vscode.xml.
@@ -161,10 +170,17 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", choices=("path", "domain"), default="path")
     ap.add_argument("--output", type=pathlib.Path, default=OUT)
+    ap.add_argument("--no-tool", action="store_true",
+                    help="configuration only: leave out the embedded tool XML and its tool conf, "
+                         "for a Galaxy that installs the tool from a ToolShed")
     args = ap.parse_args()
-    xml = textwrap.indent(expand(args.mode), "      ")
-    args.output.write_text(HEADER.format(mode=args.mode, xml=xml))
-    print(f"wrote {args.output} ({args.mode} mode)")
+    if args.no_tool:
+        tool_config = embedded = ""
+    else:
+        tool_config = TOOL_CONFIG
+        embedded = EMBEDDED.replace("{xml}", textwrap.indent(expand(args.mode), "      "))
+    args.output.write_text(HEADER.format(mode=args.mode, tool_config=tool_config, embedded=embedded))
+    print(f"wrote {args.output} ({args.mode} mode{', no embedded tool' if args.no_tool else ''})")
 
 
 if __name__ == "__main__":

@@ -132,6 +132,11 @@ Then set `interactivetools_proxy_host` to the Galaxy hostname, set
 `k8s_interactivetools_tls_secret`, and point the wildcard DNS record at the
 ingress controller.
 
+If the tool is installed from a ToolShed instead of being embedded, render the
+configuration alone and use that file in place of the overlay:
+
+    scripts/render_helm.py --no-tool --output vscode-it-config.yml
+
 After changing the overlay on a running deployment, restart the web, job and
 workflow deployments. Mounted tool files are not picked up live.
 

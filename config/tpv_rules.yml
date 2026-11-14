@@ -1,7 +1,9 @@
 # Total Perspective Vortex rule for interactive tools (TPV users; plain job_conf
 # users route the tool in config/job_conf.yml instead).
 tools:
-  interactive_tool_.*:
+  # TPV matches from the START of the tool id. A ToolShed-installed tool's id
+  # starts with the ToolShed host, hence the leading `.*`.
+  .*interactive_tool_.*:
     cores: 1
     mem: 4
     params:

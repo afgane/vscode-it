@@ -5,7 +5,15 @@
   python3 it_test.py stop <entry point id>  -> stops the IT
   python3 it_test.py history <history id>   -> lists history contents
 
-GALAXY and KEY come from the environment.
+GALAXY and KEY come from the environment. TOOL_ID selects the tool to launch and
+defaults to interactive_tool_vscode, the id of a copy installed from this
+repository (install.sh or the Helm overlay). A ToolShed install has a long id:
+
+  TOOL_ID=toolshed    toolshed.g2.bx.psu.edu/repos/ksuderman/interactive_tool_vscode/interactive_tool_vscode/<version>
+  TOOL_ID=testtoolshed    the same on testtoolshed.g2.bx.psu.edu
+  TOOL_ID=<any id>    used as given
+
+For the two shorthands the installed version is looked up on the Galaxy.
 """
 import os
 import sys
@@ -15,6 +23,21 @@ import requests
 
 BASE = os.environ["GALAXY"].rstrip("/")
 H = {"x-api-key": os.environ["KEY"]}
+
+
+SHEDS = {"toolshed": "toolshed.g2.bx.psu.edu", "testtoolshed": "testtoolshed.g2.bx.psu.edu"}
+
+
+def tool_id():
+    wanted = os.environ.get("TOOL_ID", "interactive_tool_vscode")
+    if wanted not in SHEDS:
+        return wanted
+    prefix = f"{SHEDS[wanted]}/repos/ksuderman/interactive_tool_vscode/interactive_tool_vscode/"
+    # in_panel=false returns a flat list of every loaded tool.
+    found = sorted(t["id"] for t in api("get", "tools", params={"in_panel": "false"}) if t["id"].startswith(prefix))
+    if not found:
+        sys.exit(f"no tool with id {prefix}<version> is installed on {BASE}")
+    return found[-1]
 
 
 def api(method, path, **kw):
@@ -32,7 +55,9 @@ def start():
         "targets": [{"destination": {"type": "hdas"}, "elements": [
             {"src": "pasted", "paste_content": "chr1\t10\t20\nchr2\t30\t40\n", "name": "regions.bed", "ext": "bed"}]}]})
     print("seeded:", [o["name"] for o in up["outputs"]])
-    job = api("post", "tools", json={"tool_id": "interactive_tool_vscode", "history_id": hist["id"], "inputs": {
+    tid = tool_id()
+    print("tool:", tid)
+    job = api("post", "tools", json={"tool_id": tid, "history_id": hist["id"], "inputs": {
         "inputs": {"batch": False, "values": [{"src": "hda", "id": up["outputs"][0]["id"]}]}}})
     job_id = job["jobs"][0]["id"]
     print("job:", job_id)

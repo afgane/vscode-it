@@ -70,7 +70,9 @@ jobs:
         # Pin every interactive tool to the k8s destination: it is the only one that
         # can create the Service + Ingress an IT needs. Tag that destination
         # `interactive` in its accept list; batch/cloud destinations must not carry it.
-        interactive_tool_.*:
+        # TPV matches from the START of the tool id, and a ToolShed-installed tool's
+        # id starts with the ToolShed host, hence the leading `.*`.
+        .*interactive_tool_.*:
           params:
             # What $__galaxy_url__ (GALAXY_URL in the tool) resolves to for IT jobs:
             # Galaxy's own nginx Service, reached from inside the cluster. The public
