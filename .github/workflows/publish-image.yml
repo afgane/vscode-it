@@ -1,0 +1,102 @@
+name: Publish image
+
+# Manual only: Actions > Publish image > Run workflow. Builds the image, tests
+# it the way Galaxy's Docker runner uses it, and pushes the same build to
+# Docker Hub and Quay.
+#
+# Repository secrets:
+#   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN   write access to docker.io/galaxy/galaxy-vscode
+#   QUAY_USERNAME, QUAY_PASSWORD          write access to quay.io/galaxyproject/galaxy-vscode
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag. Leave empty to use the tag docker/build.sh builds.
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-image
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_IMAGE: docker.io/galaxy/galaxy-vscode
+  QUAY_IMAGE: quay.io/galaxyproject/galaxy-vscode
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="$INPUT_TAG"
+          if [ -z "$tag" ]; then
+            version=$(sed -n 's|^OPENVSCODE_VERSION=.*:-\([^}]*\)}.*|\1|p' docker/build.sh)
+            suffix=$(sed -n 's|^TAG=.*VERSION}\(-[0-9]*\)}.*|\1|p' docker/build.sh)
+            tag="${version}${suffix}"
+          fi
+          if ! printf '%s' "$tag" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+            echo "::error::'$tag' is not a valid image tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Publishing tag $tag"
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to Quay
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Refuse to move an existing tag
+        # Tags are never reused: nodes that already pulled one would not see it
+        # change. Bump the suffix in docker/build.sh instead.
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          for image in "$DOCKERHUB_IMAGE" "$QUAY_IMAGE"; do
+            if docker manifest inspect "$image:$TAG" > /dev/null 2>&1; then
+              echo "::error::$image:$TAG already exists"
+              exit 1
+            fi
+          done
+      - name: Build
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: REGISTRY=docker.io/galaxy IMAGE_NAME=galaxy-vscode docker/build.sh
+      - name: Test the way Galaxy's Docker runner uses it
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: scripts/dev/test_image.sh "$DOCKERHUB_IMAGE:$TAG"
+      - name: Push to Docker Hub
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: docker push "$DOCKERHUB_IMAGE:$TAG"
+      - name: Push to Quay
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          docker tag "$DOCKERHUB_IMAGE:$TAG" "$QUAY_IMAGE:$TAG"
+          docker push "$QUAY_IMAGE:$TAG"
+      - name: Summary
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          {
+            echo "Published:"
+            echo
+            echo "- \`$DOCKERHUB_IMAGE:$TAG\`"
+            echo "- \`$QUAY_IMAGE:$TAG\`"
+          } >> "$GITHUB_STEP_SUMMARY"
