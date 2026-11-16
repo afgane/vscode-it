@@ -6,9 +6,11 @@
 # do analysis in the IDE and to move data between the workspace, the history and
 # (on Terra) the workspace bucket:
 #
-#   - python3 with bioblend (Galaxy API) and ipykernel (run .ipynb files with the
-#     Jupyter extension)
-#   - micromamba for conda-forge / bioconda packages
+#   - python3 with bioblend (Galaxy API), ipykernel (run .ipynb files with the
+#     Jupyter extension) and the usual data stack: numpy, pandas, scipy,
+#     scikit-learn, matplotlib, seaborn
+#   - micromamba for conda-forge / bioconda packages, and conda-pack to archive
+#     an environment so it can be restored in a later session
 #   - R from conda-forge with languageserver (R extension), IRkernel (R notebooks
 #     with the Jupyter extension) and httpgd (plots in the R extension)
 #   - the Google Cloud CLI (gcloud, gsutil). Inside the cluster it authenticates
@@ -54,7 +56,9 @@ RUN apt-get update \
 
 # jupyter_client provides `jupyter kernelspec`, which IRkernel's installspec needs
 # and which the Jupyter extension uses to find kernels.
-RUN pip3 install --no-cache-dir bioblend ipykernel jupyter_client
+RUN pip3 install --no-cache-dir bioblend ipykernel jupyter_client \
+        numpy pandas scipy scikit-learn matplotlib seaborn \
+        conda-pack
 
 # micromamba: a single static binary. The environments root for users' own
 # environments is set per session by start.sh (MAMBA_ROOT_PREFIX under the job's
@@ -97,7 +101,8 @@ RUN chmod -R a+rX /opt/galaxy-vscode
 ENV PATH=/opt/galaxy-vscode/bin:${PATH}
 
 # Sanity checks: fail the build rather than the first IT launch.
-RUN python3 -c "import bioblend, ipykernel" \
+RUN python3 -c "import bioblend, ipykernel, numpy, pandas, scipy, sklearn, matplotlib, seaborn" \
+    && conda-pack --version >/dev/null \
     && gcloud --version >/dev/null \
     && micromamba --version >/dev/null \
     && [ "$(command -v python3)" = /usr/bin/python3 ] \
