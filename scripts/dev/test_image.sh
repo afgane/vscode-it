@@ -42,9 +42,11 @@ echo "== image: $IMG"
 docker inspect "$IMG" --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}} User={{.Config.User}}' || exit 1
 
 echo "== 1. a command passed to docker run must execute (not be swallowed)"
-out=$(docker run --rm $P "$IMG" /bin/sh -c 'echo COMMAND-RAN; for c in python3 R gcloud micromamba; do command -v $c; done | wc -l')
+out=$(docker run --rm $P "$IMG" /bin/sh -c 'echo COMMAND-RAN; for c in python3 R gcloud micromamba conda-pack; do command -v $c; done | wc -l')
 check "command ran" "$(echo "$out" | head -1)" COMMAND-RAN
-check "python3, R, gcloud, micromamba on PATH" "$(echo "$out" | tail -1 | tr -d ' ')" 4
+check "python3, R, gcloud, micromamba, conda-pack on PATH" "$(echo "$out" | tail -1 | tr -d ' ')" 5
+out=$(docker run --rm $P "$IMG" python3 -c 'import bioblend, ipykernel, numpy, pandas, scipy, sklearn, matplotlib, seaborn; print("IMPORTS-OK")' 2>&1 | tail -1)
+check "python data stack imports" "$out" IMPORTS-OK
 
 echo "== 2. path mode: EP_PATH as Galaxy injects it (no trailing slash)"
 launch 'export EP_PATH=/galaxy/its/ep/1/tok'

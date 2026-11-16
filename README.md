@@ -51,7 +51,7 @@ Nothing installs them for you.
 `--tool-path` is Galaxy's `tool_path`, usually `<galaxy root>/tools`. The
 installer writes `<tool-path>/interactive/vscode/` and prints the remaining
 steps. Add `--container IMAGE` to use an image other than the default
-`ksuderman/galaxy-vscode:1.105.1-4`.
+`ksuderman/galaxy-vscode:1.105.1-5`.
 
 To install by hand, copy `tool/` to that directory and edit the tokens in
 `macros.xml`:
@@ -171,6 +171,8 @@ or an exact dataset name. `bioblend` is installed for anything else.
 
 - `python3` with `bioblend` and `ipykernel`. Notebooks (`.ipynb`) run with the
   pre-installed Jupyter extension; select `/usr/bin/python3` as the kernel.
+  `numpy`, `pandas`, `scipy`, `scikit-learn`, `matplotlib` and `seaborn` are
+  installed for it.
 - R with `languageserver`, `IRkernel` (the "R" notebook kernel) and `httpgd`
   for plots.
 - `micromamba` for conda-forge and bioconda packages:
@@ -178,6 +180,8 @@ or an exact dataset name. `bioblend` is installed for anything else.
       micromamba create -n work -c conda-forge -c bioconda samtools
       micromamba activate work
 
+- `conda-pack`, to archive a conda environment for a later session (see
+  below).
 - `git`, `git-lfs`, `curl`, `jq`, `nano`, `unzip`.
 - `gcloud` and `gsutil`. On a Google Cloud VM they authenticate as the VM's
   service account with no login.
@@ -191,6 +195,37 @@ need compiling. Install Bioconductor packages prebuilt from bioconda instead:
     micromamba run -n bioc Rscript -e 'IRkernel::installspec(name="bioc", displayname="R (bioc)")'
 
 The second command makes that environment's R available as a notebook kernel.
+
+### Keeping a conda environment between sessions
+
+Conda environments are discarded with the session, and copying one back by
+hand does not work, because an environment records the directory it was built
+in and that directory is different in every session. `conda-pack` produces an
+archive that can be restored anywhere.
+
+Save an environment, here to a Google Cloud Storage bucket the session can
+write to, such as the workspace bucket on Terra:
+
+    conda-pack -p ~/micromamba/envs/work -o work.tar.gz
+    gcloud storage cp work.tar.gz gs://<bucket>/galaxy-vscode/work.tar.gz
+
+Restore it in a later session:
+
+    gcloud storage cp gs://<bucket>/galaxy-vscode/work.tar.gz .
+    mkdir -p ~/micromamba/envs/work
+    tar -xzf work.tar.gz -C ~/micromamba/envs/work
+    python3 ~/micromamba/envs/work/bin/conda-unpack
+    micromamba activate work
+
+Run `conda-unpack` with `python3` as shown. It repairs the paths inside the
+environment, and calling it directly fails in an environment that has no
+Python of its own.
+
+Without a bucket, keep the archive in the history instead: `galaxy-put
+work.tar.gz` to save it and `galaxy-get work.tar.gz` to fetch it back.
+
+Archives of large environments, R and Bioconductor ones in particular, can be
+a gigabyte or more.
 
 ### Run an analysis here, or send it to Batch
 
@@ -334,7 +369,7 @@ pulled a tag will not see it change. Then pass the image to `install.sh
 both modes. To try the image by hand:
 
     docker run --rm -e EP_PATH=/galaxy/interactivetool/ep/1/t -w /jobdir -v $PWD:/jobdir \
-        --user 10001:10001 -p 3000:3000 ksuderman/galaxy-vscode:1.105.1-4
+        --user 10001:10001 -p 3000:3000 ksuderman/galaxy-vscode:1.105.1-5
     # open http://localhost:3000/galaxy/interactivetool/ep/1/t/
     # domain mode: -e EP_PATH=/ and open http://localhost:3000/
 

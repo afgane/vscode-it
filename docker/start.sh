@@ -35,6 +35,7 @@ export MAMBA_ROOT_PREFIX="$MAMBA_ROOT_PREFIX"
 eval "\$(micromamba shell hook -s bash)"
 cd "$WORKSPACE"
 PS1='\w \$ '
+alias ll='ls -l'
 EOF
 echo 'source ~/.bashrc' > "$HOME/.bash_profile"
 
@@ -102,6 +103,8 @@ print(gi.histories.show_history(os.environ["HISTORY_ID"])["name"])'
 
 - `python3` with `bioblend` and `ipykernel`, so `.ipynb` notebooks run with the
   pre-installed Jupyter extension. Select `/usr/bin/python3` as the kernel.
+  `numpy`, `pandas`, `scipy`, `scikit-learn`, `matplotlib` and `seaborn` are
+  installed for it.
 - `R` and `Rscript` (conda-forge) with `languageserver` for the pre-installed R
   extension, `IRkernel` so notebooks can use the "R" kernel, and `httpgd` for
   plots. Add packages with `install.packages()` (they go under `~/R`, so they
@@ -114,6 +117,32 @@ print(gi.histories.show_history(os.environ["HISTORY_ID"])["name"])'
 - `gcloud` and `gsutil`.
 
 More extensions can be installed from the Extensions view (Open VSX registry).
+
+## Keeping a conda environment for a later session
+
+Environments are discarded when the tool stops. `conda-pack` turns one into a
+single archive that can be restored later, here saved to a Google Cloud Storage
+bucket you can write to:
+
+```
+conda-pack -p ~/micromamba/envs/work -o work.tar.gz
+gcloud storage cp work.tar.gz gs://<bucket>/galaxy-vscode/work.tar.gz
+```
+
+In a later session:
+
+```
+gcloud storage cp gs://<bucket>/galaxy-vscode/work.tar.gz .
+mkdir -p ~/micromamba/envs/work
+tar -xzf work.tar.gz -C ~/micromamba/envs/work
+python3 ~/micromamba/envs/work/bin/conda-unpack
+micromamba activate work
+```
+
+Run `conda-unpack` with `python3` as shown: it repairs the paths inside the
+environment, which was built under a different directory. An archive can also
+be kept in the history with `galaxy-put work.tar.gz` and fetched with
+`galaxy-get`.
 
 ## Google Cloud
 
